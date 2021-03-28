@@ -1,0 +1,1 @@
+cmd_/root/rkv2/rkmod/kmodd.ko := ld -r -m elf_x86_64 -T /usr/src/kernels/3.6.10-4.fc18.x86_64/scripts/module-common.lds --build-id  -o /root/rkv2/rkmod/kmodd.ko /root/rkv2/rkmod/kmodd.o /root/rkv2/rkmod/kmodd.mod.o
